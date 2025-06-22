@@ -11,10 +11,12 @@ import numpy as np
 import os
 import onnxruntime as ort
 
+
 class MahjongItem:
     """
     麻将数据
     """
+
     def __init__(self, class_id, box, score, classname):
         self.class_id = class_id
         self.box = box  # [left, top, width, height]
@@ -33,7 +35,7 @@ class YOLOv8:
         conf_threshold=0.1,
         rms_threshold=0.1,
         device="cpu",
-        classes='./classes.txt'
+        classes="./classes.txt",
     ):
         self.model_path = model_path
         self.input_size = input_size
@@ -44,7 +46,7 @@ class YOLOv8:
         if isinstance(classes, str):
             if not os.path.exists(classes):
                 raise ValueError(f"Classes file does not exist: {classes}")
-            with open(classes, 'r') as f:
+            with open(classes, "r") as f:
                 self.classes = [line.strip() for line in f.readlines()]
         elif isinstance(classes, list):
             self.classes = classes
@@ -129,12 +131,16 @@ class YOLOv8:
         )
 
         mahjong = []
-        for i in indices.flatten():
+        for i in indices:
             if i < len(boxes) and i < len(scores) and i < len(class_ids):
                 class_id = class_ids[i]
                 box = boxes[i]
                 score = scores[i]
-                classname = self.classes[class_id] if class_id < len(self.classes) else "Unknown"
+                classname = (
+                    self.classes[class_id]
+                    if class_id < len(self.classes)
+                    else "Unknown"
+                )
                 mahjong.append(MahjongItem(class_id, box, score, classname))
         return mahjong
 
@@ -147,23 +153,31 @@ class YOLOv8:
         data = self.postprocess(output, pad)
         return data
 
+
 class MahjongDetector:
-    def __init__(self, model_path, device="cpu", classes='./classes.txt'):
-        self.yolo = YOLOv8(model_path=model_path, device=device, classes=classes)
+    def __init__(self, model_path, device="cpu", classes="./classes.txt"):
+        self.yolo = YOLOv8(model_path=model_path, device=device, classes=classes, conf_threshold=0.8)
         self.data_of_last = None
 
     def detect(self, image):
-        data =  self.yolo(image)
+        data = self.yolo(image)
         data = sorted(data, key=lambda x: x.score, reverse=True)
         self.data_of_last = data
         return data
 
+
 def main(args):
-    yolo = YOLOv8(model_path=args.model, device=args.device, classes=args.classes, conf_threshold=0.8)
+    yolo = YOLOv8(
+        model_path=args.model,
+        device=args.device,
+        classes=args.classes,
+        conf_threshold=0.8,
+    )
 
     if os.path.isdir(args.image):
         images = [f"{args.image}/{x}" for x in os.listdir(args.image)]
-    else: images = [args.image]
+    else:
+        images = [args.image]
     images = sorted(images)
 
     mahjongs = []
@@ -197,8 +211,9 @@ def main(args):
             )
         cv.imshow("Detection", img)
         cv.waitKey(0)
-        mahjongs.append(data[0])
+        mahjongs.append(data[0]) if len(data) > 0 else None
     print(f"{mahjongs=}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YOLOv8 Detection")
@@ -209,7 +224,10 @@ if __name__ == "__main__":
         help="Path to the ONNX model",
     )
     parser.add_argument(
-        "--image", type=str, default="./mahjongs", help="Path to the input image or folder"
+        "--image",
+        type=str,
+        default="/home/neolux/workspace/SmartMahjong/images_grey/",
+        help="Path to the input image or folder",
     )
     parser.add_argument(
         "--device",
