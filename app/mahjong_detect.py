@@ -150,10 +150,12 @@ class YOLOv8:
 class MahjongDetector:
     def __init__(self, model_path, device="cpu", classes='./classes.txt'):
         self.yolo = YOLOv8(model_path=model_path, device=device, classes=classes)
+        self.data_of_last = None
 
     def detect(self, image):
         data =  self.yolo(image)
         data = sorted(data, key=lambda x: x.score, reverse=True)
+        self.data_of_last = data
         return data
 
 def main(args):
