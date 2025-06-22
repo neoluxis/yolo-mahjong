@@ -128,16 +128,6 @@ class YOLOv8:
             boxes, scores, self.conf_threshold, self.rms_threshold
         )
 
-        # data = [
-        #     {
-        #         "class_id": class_ids[i], 
-        #         "box": boxes[i], 
-        #         "score": scores[i], 
-        #         "classname": self.classes[class_ids[i]] if class_ids[i] < len(self.classes) else "Unknown"} 
-        #     for i in indices.flatten()
-        #     if i < len(boxes) and i < len(scores) and i < len(class_ids)
-        # ]
-        # return data
         mahjong = []
         for i in indices.flatten():
             if i < len(boxes) and i < len(scores) and i < len(class_ids):
@@ -162,40 +152,51 @@ class MahjongDetector:
         self.yolo = YOLOv8(model_path=model_path, device=device, classes=classes)
 
     def detect(self, image):
-        return self.yolo(image)
+        data =  self.yolo(image)
+        data = sorted(data, key=lambda x: x.score, reverse=True)
+        return data
 
 def main(args):
-    yolo = YOLOv8(model_path=args.model, device=args.device, classes=args.classes)
+    yolo = YOLOv8(model_path=args.model, device=args.device, classes=args.classes, conf_threshold=0.8)
 
-    img = cv.imread(args.image)
-    if img is None:
-        raise ValueError(f"Could not read image: {args.image}")
+    if os.path.isdir(args.image):
+        images = [f"{args.image}/{x}" for x in os.listdir(args.image)]
+    else: images = [args.image]
+    images = sorted(images)
 
-    data = yolo(img)
-    print(f"{data=}")
+    mahjongs = []
+    for image in images:
+        img = cv.imread(image)
+        if img is None:
+            raise ValueError(f"Could not read image: {args.image}")
 
-    for item in data:
-        box = item.box
-        class_id = item.class_id
-        score = item.score
-        classname = item.classname
+        data = yolo(img)
+        print(f"{data=}")
 
-        left, top, width, height = box
-        right, bottom = left + width, top + height
+        data = sorted(data, key=lambda x: x.score, reverse=True)
+        for item in data:
+            box = item.box
+            class_id = item.class_id
+            score = item.score
+            classname = item.classname
 
-        cv.rectangle(img, (left, top), (right, bottom), (0, 255, 0), 2)
-        cv.putText(
-            img,
-            f"Class: {class_id}, Score: {score:.2f}",
-            (left, top - 10),
-            cv.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (0, 255, 0),
-            2,
-        )
-    cv.imshow("Detection", img)
-    cv.waitKey(0)
+            left, top, width, height = box
+            right, bottom = left + width, top + height
 
+            cv.rectangle(img, (left, top), (right, bottom), (0, 255, 0), 2)
+            cv.putText(
+                img,
+                f"Class: {class_id}, Score: {score:.2f}",
+                (left, top - 10),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 0),
+                2,
+            )
+        cv.imshow("Detection", img)
+        cv.waitKey(0)
+        mahjongs.append(data[0])
+    print(f"{mahjongs=}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YOLOv8 Detection")
@@ -206,7 +207,7 @@ if __name__ == "__main__":
         help="Path to the ONNX model",
     )
     parser.add_argument(
-        "--image", type=str, default="./test.jpg", help="Path to the input image"
+        "--image", type=str, default="./mahjongs", help="Path to the input image or folder"
     )
     parser.add_argument(
         "--device",
