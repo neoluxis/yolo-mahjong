@@ -11,6 +11,19 @@ import numpy as np
 import os
 import onnxruntime as ort
 
+class MahjongItem:
+    """
+    麻将数据
+    """
+    def __init__(self, class_id, box, score, classname):
+        self.class_id = class_id
+        self.box = box  # [left, top, width, height]
+        self.score = score
+        self.classname = classname
+
+    def __repr__(self):
+        return f"MahjongItem(class_id={self.class_id}, classname='{self.classname}')"
+
 
 class YOLOv8:
     def __init__(
@@ -115,16 +128,25 @@ class YOLOv8:
             boxes, scores, self.conf_threshold, self.rms_threshold
         )
 
-        data = [
-            {
-                "class_id": class_ids[i], 
-                "box": boxes[i], 
-                "score": scores[i], 
-                "classname": self.classes[class_ids[i]] if class_ids[i] < len(self.classes) else "Unknown"} 
-            for i in indices.flatten()
-            if i < len(boxes) and i < len(scores) and i < len(class_ids)
-        ]
-        return data
+        # data = [
+        #     {
+        #         "class_id": class_ids[i], 
+        #         "box": boxes[i], 
+        #         "score": scores[i], 
+        #         "classname": self.classes[class_ids[i]] if class_ids[i] < len(self.classes) else "Unknown"} 
+        #     for i in indices.flatten()
+        #     if i < len(boxes) and i < len(scores) and i < len(class_ids)
+        # ]
+        # return data
+        mahjong = []
+        for i in indices.flatten():
+            if i < len(boxes) and i < len(scores) and i < len(class_ids):
+                class_id = class_ids[i]
+                box = boxes[i]
+                score = scores[i]
+                classname = self.classes[class_id] if class_id < len(self.classes) else "Unknown"
+                mahjong.append(MahjongItem(class_id, box, score, classname))
+        return mahjong
 
     def __call__(self, img):
         self.img_height, self.img_width = img.shape[:2]
@@ -134,38 +156,6 @@ class YOLOv8:
         output = self.session.run(self.output_names, {self.input_name: input_image})
         data = self.postprocess(output, pad)
         return data
-
-class MahjongItem:
-    """
-    麻将数据
-    """
-    def __init__(self, class_id, box, score, classname):
-        self.class_id = class_id
-        self.box = box  # [left, top, width, height]
-        self.score = score
-        self.classname = classname
-
-    def __repr__(self):
-        return f"MahjongItem(class_id={self.class_id}, classname='{self.classname}')"
-
-class MahjongStack:
-    """ 
-    麻将牌栈数据, 用于存放麻将序列
-    """
-    def __init__(self, items=None):
-        if items is None:
-            items = []
-        self.items = items
-
-    def add_item(self, item):
-        if isinstance(item, MahjongItem):
-            self.items.append(item)
-        else:
-            raise ValueError("Item must be an instance of MahjongItem")
-
-    def __repr__(self):
-        pass
-    
 
 class MahjongDetector:
     def __init__(self, model_path, device="cpu", classes='./classes.txt'):
@@ -185,9 +175,10 @@ def main(args):
     print(f"{data=}")
 
     for item in data:
-        box = item["box"]
-        class_id = item["class_id"]
-        score = item["score"]
+        box = item.box
+        class_id = item.class_id
+        score = item.score
+        classname = item.classname
 
         left, top, width, height = box
         right, bottom = left + width, top + height
